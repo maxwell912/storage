@@ -55,3 +55,9 @@ class Test_storage:
 
     def test_defrag(self):
         Test_storage.storage._defrag()
+
+    def test_del_files(self):
+        import os
+        os.remove('data')
+        os.remove('dict')
+        os.remove('app_log')
