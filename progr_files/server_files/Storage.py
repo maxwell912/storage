@@ -1,11 +1,12 @@
 import pickle
 import os
-import sys
 from os.path import join
+
+current_dir = os.path.dirname(__file__)[:-12]
 
 
 class Storage:
-    def __init__(self, storage_dir=join(sys.path[0], 'DB'),
+    def __init__(self, storage_dir=join(current_dir, 'DB'),
                  pack_len=1024):
         self.dict_dir = join(storage_dir, 'dict')
         self.data_dir = join(storage_dir, 'data')
