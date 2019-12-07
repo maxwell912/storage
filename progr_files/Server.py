@@ -10,19 +10,28 @@ server_dir = dirname(__file__)
 
 
 class Server:
-    def __init__(self, address, port, stor_dir=None):
-        self.ADDRESS = (address, port)
+    def __init__(self, address=None, stor_dr=None,
+                 log_dir=join(server_dir, 'server_files',
+                              'server_log'),
+                 conf_dir=join(server_dir, 'server_files',
+                               'server_config')):
+        self._log_dir = log_dir
+        self._conf_dir = conf_dir
+        conf = self._load_conf()
+        self.ADDRESS = (conf[0], conf[1]) if address is None else address
         self._readable = 1
+        self._still_working = True
+
         self.server = None
+        self.connections = dict()
         self._commands = {'0': self._add,
                           '1': self._get,
                           '2': self._remove,
                           '3': self._check}
-        self.connections = dict()
 
-        self._still_working = True
-        self.storage = Storage() if stor_dir is None else Storage(stor_dir)
-        self._log_dir = join(server_dir, 'server_files', 'server_log')
+        if stor_dr is None and conf[2] != '':
+            stor_dr = conf[2]
+        self.storage = Storage() if stor_dr is None else Storage(stor_dr)
 
     def start(self):
         print("Starting server " + str(self.ADDRESS))
@@ -61,8 +70,9 @@ class Server:
                     if address in self.connections.keys():
                         self.connections.pop(address)
                     conn[0].close()
-        self.server.close()
-        self._log('Server closed ' + str(self.ADDRESS))
+        if self.server is not None:
+            self.server.close()
+            self._log('Server closed', str(self.ADDRESS))
 
     def handle_connection(self, sock, address):
         while self._still_working:
@@ -84,8 +94,10 @@ class Server:
 
     def _log(self, *args):
         with open(self._log_dir, 'a') as log:
-            print(' '.join((str(datetime.now()), str(self.ADDRESS)) + args))
-            log.write(str(datetime.now()) + ' ' + ' '.join(args) + '\n')
+            print(' '.join((str(datetime.now()),
+                            str(self.ADDRESS)) + args))
+            log.write(' '.join((str(datetime.now()),
+                               str(self.ADDRESS)) + args) + '\n')
 
     def _add(self, key, sock: socket.socket, address):
         value_len = int(sock.recv(10).decode('utf-8'))
@@ -93,25 +105,33 @@ class Server:
         while self._readable < 1:
             continue
         self._readable -= 1
-        self._log(str(address), 'add', key, value)
+        self._log(str(address), 'add',
+                  'key:', key, 'value:', value)
         self.storage.add(key, value)
         self._readable += 1
         sock.send('00000000011'.encode('utf-8'))
 
     def _get(self, key, sock: socket.socket, address):
         value = self.storage.get(key)
-        self._log(str(address), 'get', key, value)
+        self._log(str(address), 'get',
+                  'key:', key, 'value:', value)
         message = Server._get_lenght(value) + value
         sock.send(message.encode("utf-8"))
 
     def _remove(self, key, sock: socket.socket, address):
         self.storage.remove_key(key)
-        self._log(str(address), 'rm', key)
+        self._log(str(address), 'rm', 'key:', key)
         sock.send('00000000011'.encode('utf-8'))
 
     def _check(self, key, sock: socket.socket, address):
         sock.send('1111111111'.encode('utf-8'))
         self._log(str(address), 'ping')
+
+    def _load_conf(self):
+        with open(self._conf_dir, 'r') as conf:
+            ip, port = conf.readline()[:-1].split(' ')
+            directory = conf.readline()
+        return ip, int(port), directory
 
     @staticmethod
     def _get_lenght(s: str):
@@ -121,30 +141,29 @@ class Server:
 
 
 def create_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-ip', '-i', nargs='?',
-                        help='Server ip. Format: ip;port')
-    parser.add_argument('-dir', '-d', nargs='?',
-                        help='DataBase directory')
-    return parser
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument('-ip', '-i', nargs='?',
+                            help='Server ip. Format: ip;port')
+    arg_parser.add_argument('-dir', '-d', nargs='?',
+                            help='DataBase directory')
+    return arg_parser
 
 
 if __name__ == '__main__':
     parser = create_parser()
     namespace = parser.parse_args()
 
-    with open(join(server_dir, 'server_config'), 'r') as conf:
-        ip, port = conf.readline()[:-1].split(' ')
-        directory = conf.readline()
+    address = None
+    directory = None
 
     if namespace.ip is not None:
-        ip, port = namespace.ip.split(';')
+        address = namespace.ip.split(';')
     if namespace.dir is not None:
         directory = namespace.dir
 
-    if directory == '':
-        server = Server(ip, int(port))
+    if address is not None:
+        server = Server((address[0], int(address[1])), directory)
         server.start()
     else:
-        server = Server(ip, int(port), directory)
+        server = Server(stor_dr=directory)
         server.start()

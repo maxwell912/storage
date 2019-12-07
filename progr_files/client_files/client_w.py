@@ -15,6 +15,7 @@ class client_web:
             return
         try:
             conn.send(message.encode('utf-8'))
+            return True
         except ConnectionError:
             self._connections.pop(address)
             print('Server ' + str(address) + ' is unreachable')

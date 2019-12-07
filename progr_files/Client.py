@@ -1,5 +1,6 @@
 import hashlib
 import argparse
+from datetime import datetime
 from os.path import dirname, join
 from progr_files.client_files.client_w import client_web
 
@@ -10,6 +11,8 @@ class Client:
                                'client_files', 'client_config')):
         self._conn = client_web()
         self._conf_dir = conf_dir
+        self._log_dir = join(dirname(__file__),
+                             'client_files', 'client_log')
         self._servers = self._load_conf() if servers is None else servers
         self._copy_count = min(copy_count, len(self._servers))
         if len(self._servers) == 0:
@@ -21,12 +24,16 @@ class Client:
         value_len = Client._get_lenght(value)
         message = '0' + key_len + key + value_len + value
         print('add ' + key + ' ' + value)
-
-        storages = self.choose_storage(key)
+        count = self._copy_count
+        storages = self.choose_storage(key, len(self._servers))
         for storage in storages:
-            self._conn.send(message, storage)
-            if self._conn.recieve(storage) == '1':
-                print('Value added ' + str(storage))
+            if self._conn.send(message, storage):
+                if self._conn.recieve(storage) == '1':
+                    self._log('add', str(storage),
+                              'key:', key, 'value:', value)
+                    count -= 1
+                    if count == 0:
+                        break
 
     def get(self, key):
         key = str(key)
@@ -34,11 +41,19 @@ class Client:
         message = '1' + key_len + key
         print('get ' + key)
         for storage in self.choose_storage(key):
-            self._conn.send(message, storage)
-            value = self._conn.recieve(storage)
-            if value is not None:
+            value = self._get_value(key, message, storage)
+            if not (value is None or value == 'KeyError'):
                 return value
-        return None
+        return self._get_value(key, message, self._log_find_ip(key))
+
+    def _get_value(self, key, message, storage):
+        value = None
+        if self._conn.send(message, storage):
+            value = self._conn.recieve(storage)
+        if not (value is None or value == 'KeyError'):
+            self._log('get', str(storage),
+                      'key:', key, 'value:', value)
+        return value
 
     def remove(self, key):
         key = str(key)
@@ -46,17 +61,38 @@ class Client:
         message = '2' + key_len + key
         print('rm ' + key)
         for storage in self.choose_storage(key):
-            self._conn.send(message, storage)
-            if self._conn.recieve(storage) == '1':
-                print('Key removed ' + str(storage))
+            if self._conn.send(message, storage):
+                if self._conn.recieve(storage) == '1':
+                    self._log('rm', str(storage), 'key:', key)
 
-    def choose_storage(self, key) -> list:
+    def choose_storage(self, key, count=None) -> list:
+        if count is None:
+            count = self._copy_count
         hash = Client._get_hash(key)
         length = len(self._servers)
         servers = list()
-        for i in range(self._copy_count):
+        for i in range(count):
             servers.append(self._servers[(hash + i) % length])
         return servers
+
+    def _log(self, *args):
+        with open(self._log_dir, 'a') as log:
+            # print(' '.join([str(datetime.now())] + list(args)))
+            log.write(' '.join([str(datetime.now())] + list(args)) + '\n')
+
+    def _log_find_ip(self, key):
+        import re
+        reg = r'.* add \((.*)\) key: {} value: .*'.format(key)
+        match = None
+        with open(self._log_dir) as log:
+            for note in log:
+                i = re.match(reg, note)
+                if i is not None:
+                    match = i
+        if match is None:
+            return None
+        ip = match.group(1).split(', ')
+        return ip[0][1:-1], int(ip[1])
 
     @staticmethod
     def _get_hash(string: str):
