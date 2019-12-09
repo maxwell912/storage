@@ -3,14 +3,18 @@ from progr_files.Server import Server
 from os.path import join
 import os
 
-IP = [("127.0.0.5", 8000), ("127.0.0.5", 8001), ("127.0.0.5", 8002), ("127.0.0.5", 8003)]
+IP = [("127.0.0.5", 8000), ("127.0.0.5", 8001),
+      ("127.0.0.5", 8002), ("127.0.0.5", 8003)]
 servers = list()
+directory = os.path.dirname(__file__)
 
 
 def test_smth():
     for i in range(len(IP)):
-        os.mkdir(join(os.path.dirname(__file__), 'progr_files', 'DB', str(i)))
-        server = Server(IP[i], join('progr_files', 'DB', str(i)))
+        os.mkdir(join(directory,
+                      'progr_files', 'DB', str(i)))
+        server = Server(IP[i], join(directory,
+                                    'progr_files', 'DB', str(i)))
         server.start()
         servers.append(server)
 
@@ -33,7 +37,8 @@ def test_smth():
         server.stop()
     import shutil
     for i in range(len(IP)):
-        shutil.rmtree(join(os.path.dirname(__file__), 'progr_files', 'DB', str(i)))
+        shutil.rmtree(join(os.path.dirname(__file__),
+                           'progr_files', 'DB', str(i)))
 
 
 if __name__ == '__main__':

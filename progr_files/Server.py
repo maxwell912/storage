@@ -1,10 +1,15 @@
 import argparse
+from importlib import import_module as im
 import os
 import socket
 import threading
 from os.path import join, dirname
 from datetime import datetime
-from progr_files.server_files.Storage import Storage
+
+try:
+    Storage = im('progr_files.server_files.Storage').Storage
+except ModuleNotFoundError:
+    Storage = im('server_files.Storage').Storage
 
 server_dir = dirname(__file__)
 
@@ -69,8 +74,13 @@ class Server:
                 if conn[1] == 0:
                     if address in self.connections.keys():
                         self.connections.pop(address)
+                    conn[0].shutdown(socket.SHUT_RDWR)
                     conn[0].close()
         if self.server is not None:
+            try:
+                self.server.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
             self.server.close()
             self._log('Server closed', str(self.ADDRESS))
 
@@ -78,11 +88,15 @@ class Server:
         while self._still_working:
             try:
                 data = sock.recv(11).decode('utf-8')
-            except ConnectionAbortedError:
+            except (ConnectionAbortedError, OSError):
                 data = ''
             if not data:
                 if address in self.connections.keys():
                     self.connections.pop(address)
+                try:
+                    sock.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
                 sock.close()
                 break
             self.connections[address][1] = 1

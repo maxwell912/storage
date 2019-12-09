@@ -1,4 +1,4 @@
-from progr_files.Storage import Storage
+from progr_files.server_files.Storage import Storage
 
 
 # python desktop\storage\progr_files\

@@ -79,13 +79,15 @@ class Storage:
                     continue
                 key = command.split(' ')[1]
                 position = log.readline()[:-1].split(';')
-                self.dictionary[key] = (int(position[0]), int(position[1]))
+                self.dictionary[key] = (int(position[0]),
+                                        int(position[1]))
         self._commit_dict()
 
     def _add_log(self, command: str, key: str, position=None):
         with open(self.log_dir, 'a') as log:
             if position is not None:
-                log.write("{0} {1}\n{2};{3}\n".format(command, key, *position))
+                log.write("{0} {1}\n{2};{3}\n".format(command,
+                                                      key, *position))
             else:
                 log.write("{0} {1}\n".format(command, key))
 

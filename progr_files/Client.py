@@ -1,17 +1,24 @@
 import hashlib
 import argparse
+from importlib import import_module as im
 from datetime import datetime
 from os.path import dirname, join
-from progr_files.client_files.client_w import client_web
+
+try:
+    client_web = im('progr_files.client_files.client_w').client_web
+except ModuleNotFoundError:
+    client_web = im('client_files.client_w').client_web
+
+client_dir = dirname(__file__)
 
 
 class Client:
-    def __init__(self, servers: list = None, copy_count: int = 1,
-                 conf_dir=join(dirname(__file__),
+    def __init__(self, servers=None, copy_count=1,
+                 conf_dir=join(client_dir,
                                'client_files', 'client_config')):
         self._conn = client_web()
         self._conf_dir = conf_dir
-        self._log_dir = join(dirname(__file__),
+        self._log_dir = join(client_dir,
                              'client_files', 'client_log')
         self._servers = self._load_conf() if servers is None else servers
         self._copy_count = min(copy_count, len(self._servers))
@@ -44,7 +51,10 @@ class Client:
             value = self._get_value(key, message, storage)
             if not (value is None or value == 'KeyError'):
                 return value
-        return self._get_value(key, message, self._log_find_ip(key))
+        log_note = self._log_find_ip(key)
+        if log_note is not None:
+            return self._get_value(key, message, self._log_find_ip(key))
+        return None
 
     def _get_value(self, key, message, storage):
         value = None
@@ -81,9 +91,11 @@ class Client:
             log.write(' '.join([str(datetime.now())] + list(args)) + '\n')
 
     def _log_find_ip(self, key):
-        import re
+        import re, os
         reg = r'.* add \((.*)\) key: {} value: .*'.format(key)
         match = None
+        if not os.path.exists(self._log_dir):
+            return None
         with open(self._log_dir) as log:
             for note in log:
                 i = re.match(reg, note)
@@ -93,6 +105,9 @@ class Client:
             return None
         ip = match.group(1).split(', ')
         return ip[0][1:-1], int(ip[1])
+
+    def __del__(self):
+        self._conn.still_working = False
 
     @staticmethod
     def _get_hash(string: str):
@@ -125,7 +140,7 @@ def create_parser() -> argparse.ArgumentParser:
 
 if __name__ == '__main__':
     from os.path import join, dirname
-    from progr_files.client_files.client_com import get_commands
+    from client_files.client_com import get_commands
 
     parser = create_parser()
     namespace = parser.parse_args()
@@ -138,6 +153,8 @@ if __name__ == '__main__':
                 servers.append((address[0], int(address[1])))
         except IndexError:
             raise Exception('Incorrect input')
+    if namespace.n is None:
+        namespace.n = 1
     if len(servers) > 0:
         client = Client(servers, int(namespace.n))
     else:
